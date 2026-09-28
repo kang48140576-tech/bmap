@@ -107,6 +107,42 @@
       color: #ffffff;
       line-height: 1;
     }
+
+    /* Current User Location Pulse Marker */
+    .user-location-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .user-location-dot {
+      width: 16px;
+      height: 16px;
+      background-color: #2563eb;
+      border: 3px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(37, 99, 235, 0.7);
+      z-index: 2;
+    }
+    .user-location-pulse {
+      position: absolute;
+      width: 38px;
+      height: 38px;
+      background-color: rgba(37, 99, 235, 0.35);
+      border-radius: 50%;
+      animation: pulse-ring 2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+      z-index: 1;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.4); opacity: 1; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+
+    /* API KEY가 필요 없는 무제한 한국어 야간 다크모드 필터 */
+    .dark-tiles {
+      filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(108%);
+      background-color: #0f172a;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 flex flex-col h-screen overflow-hidden select-none">
@@ -258,6 +294,12 @@
     <div class="flex-1 relative h-full">
       <div id="map"></div>
 
+      <!-- Current Location Floating Button (현재 내 위치 찾기 버튼) -->
+      <button id="btnMyLocation" class="absolute bottom-6 left-4 z-[400] bg-white/95 hover:bg-white text-slate-700 hover:text-blue-600 active:scale-95 px-3.5 py-2.5 rounded-xl shadow-lg border border-slate-200/90 flex items-center gap-2 text-xs font-bold transition backdrop-blur-md group" title="현재 내 위치 확인">
+        <i class="ph-bold ph-crosshair text-base text-blue-600 group-hover:rotate-45 transition-transform duration-200"></i>
+        <span>내 위치 찾기</span>
+      </button>
+
       <!-- Korean Tile Layer Selector Widget (우측 상단 지도 레이어 전환) -->
       <div class="absolute top-4 right-4 z-[400] flex flex-col gap-1.5 bg-white/95 backdrop-blur-md p-2 rounded-xl shadow-lg border border-slate-200/90 text-xs">
         <div class="font-bold text-slate-800 px-1 flex items-center gap-1.5 pb-1 border-b border-slate-100">
@@ -268,14 +310,14 @@
             <span>🇰🇷 고화질 한국어 지도</span>
             <i class="ph-bold ph-check text-blue-600"></i>
           </button>
+          <button data-tile="koreanSatellite" class="tile-btn px-2.5 py-1.5 rounded-lg font-medium text-left text-slate-700 hover:bg-slate-50 flex items-center justify-between">
+            <span>🛰️ 항공/위성 + 한글명</span>
+          </button>
           <button data-tile="koreanTerrain" class="tile-btn px-2.5 py-1.5 rounded-lg font-medium text-left text-slate-700 hover:bg-slate-50 flex items-center justify-between">
             <span>⛰️ 한국어 지형/등고선</span>
           </button>
-          <button data-tile="cartoVoyager" class="tile-btn px-2.5 py-1.5 rounded-lg font-medium text-left text-slate-700 hover:bg-slate-50 flex items-center justify-between">
-            <span>🌐 글로벌 백터 (CARTO)</span>
-          </button>
-          <button data-tile="cartoDark" class="tile-btn px-2.5 py-1.5 rounded-lg font-medium text-left text-slate-700 hover:bg-slate-50 flex items-center justify-between">
-            <span>🌙 야간 다크 모드</span>
+          <button data-tile="koreanDark" class="tile-btn px-2.5 py-1.5 rounded-lg font-medium text-left text-slate-700 hover:bg-slate-50 flex items-center justify-between">
+            <span>🌙 야간 다크 모드 (무료)</span>
           </button>
         </div>
       </div>
@@ -457,23 +499,24 @@
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
         attribution: '&copy; 지도 데이터: Google / 한국어 지명'
       }),
-      // 2. 한국어 지형 및 등고선 지도
+      // 2. 항공/위성 하이브리드 지도 (한글 지명 및 도로망 포함)
+      koreanSatellite: L.tileLayer('https://mt1.google.com/vt/lyrs=y&hl=ko&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: '&copy; 지도 데이터: Google / 위성 영상'
+      }),
+      // 3. 한국어 지형 및 등고선 지도
       koreanTerrain: L.tileLayer('https://mt1.google.com/vt/lyrs=p&hl=ko&x={x}&y={y}&z={z}', {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
         attribution: '&copy; 지형 데이터: Google / 한국어 지형'
       }),
-      // 3. CARTO Voyager (부드러운 글로벌 벡터)
-      cartoVoyager: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        subdomains: 'abcd',
-        attribution: '&copy; CARTO'
-      }),
-      // 4. 야간 다크 모드
-      cartoDark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        subdomains: 'abcd',
-        attribution: '&copy; CARTO Dark'
+      // 4. 야간 다크 모드 (API 키 제한 없는 한국어 고화질 다크 레이어)
+      koreanDark: L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=ko&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        className: 'dark-tiles',
+        attribution: '&copy; 다크 테마 / 한국어 지명'
       })
     };
 
@@ -496,6 +539,11 @@
     let filteredStores = [];
     let selectedStoreId = null;
     let storeMarkerMap = new Map();
+
+    // 내 위치 관련 전역 변수
+    let userLocationMarker = null;
+    let userLocationCircle = null;
+    let currentUserCoords = null;
 
     let filterState = {
       mainCat: 'ALL',
@@ -1008,9 +1056,99 @@
     }
 
     // -------------------------------------------------------------------------
+    // 현재 내 위치(GPS Geolocation) 추적 및 마커 표시
+    // -------------------------------------------------------------------------
+    function locateCurrentUser() {
+      if (!navigator.geolocation) {
+        showToast('현재 브라우저 환경에서 GPS 위치 서비스를 지원하지 않습니다.', 'error');
+        return;
+      }
+
+      const myLocBtn = document.getElementById('btnMyLocation');
+      const origContent = myLocBtn.innerHTML;
+      myLocBtn.innerHTML = `<i class="ph ph-spinner animate-spin text-blue-600 text-base"></i><span>위치 확인 중...</span>`;
+      myLocBtn.disabled = true;
+
+      showToast('현재 위치 신호를 수신하고 있습니다...', 'info');
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          myLocBtn.innerHTML = origContent;
+          myLocBtn.disabled = false;
+
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const accuracy = position.coords.accuracy;
+          currentUserCoords = { lat, lng };
+
+          // 기존 내 위치 마커 및 정확도 반경 원 제거
+          if (userLocationMarker) map.removeLayer(userLocationMarker);
+          if (userLocationCircle) map.removeLayer(userLocationCircle);
+
+          // 정확도 반경 원 (최대 500m로 제한하여 지도 시인성 유지)
+          userLocationCircle = L.circle([lat, lng], {
+            radius: Math.min(accuracy, 500),
+            color: '#2563eb',
+            fillColor: '#3b82f6',
+            fillOpacity: 0.15,
+            weight: 1.5,
+            dashArray: '4, 4'
+          }).addTo(map);
+
+          // 펄스 애니메이션 내 위치 마커 생성
+          const userIcon = L.divIcon({
+            className: 'user-location-marker',
+            html: `
+              <div class="user-location-pulse"></div>
+              <div class="user-location-dot"></div>
+            `,
+            iconSize: [38, 38],
+            iconAnchor: [19, 19]
+          });
+
+          userLocationMarker = L.marker([lat, lng], {
+            icon: userIcon,
+            zIndexOffset: 1200
+          }).addTo(map);
+
+          userLocationMarker.bindPopup(`
+            <div style="font-family: inherit; font-size: 12px; color: #1e293b; padding: 3px 2px;">
+              <div style="display:flex; align-items:center; gap:5px; font-weight:700; color:#2563eb; margin-bottom:3px;">
+                <i class="ph-bold ph-navigation-arrow"></i> <span>현재 내 위치</span>
+              </div>
+              <p style="font-size: 11px; color: #64748b; margin: 0;">정확도: 반경 약 ${Math.round(accuracy)}m 이내</p>
+            </div>
+          `).openPopup();
+
+          map.flyTo([lat, lng], 15, { duration: 1.2 });
+          showToast('현재 위치를 확인하여 지도를 이동했습니다.', 'success');
+        },
+        (err) => {
+          myLocBtn.innerHTML = origContent;
+          myLocBtn.disabled = false;
+          console.warn('Geolocation error:', err);
+
+          let msg = '현재 위치 정보를 가져올 수 없습니다.';
+          if (err.code === 1) {
+            msg = '위치 권한이 차단되었습니다. 브라우저 설정에서 위치 권한을 허용해 주세요.';
+          } else if (err.code === 2) {
+            msg = '위치 신호를 수신할 수 없습니다.';
+          } else if (err.code === 3) {
+            msg = '위치 수신 요청 시간이 초과되었습니다.';
+          }
+          showToast(msg, 'error');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    // -------------------------------------------------------------------------
     // 12. 이벤트 리스너 바인딩
     // -------------------------------------------------------------------------
     document.addEventListener('DOMContentLoaded', () => {
+      // 내 위치 찾기 버튼 클릭 이벤트
+      document.getElementById('btnMyLocation').addEventListener('click', locateCurrentUser);
+
       // 1. 큰 분류 탭 클릭 이벤트
       document.querySelectorAll('#mainCategoryTabs .cat-tab').forEach(tab => {
         tab.addEventListener('click', () => {
